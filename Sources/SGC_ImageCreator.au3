@@ -1,5 +1,5 @@
 ; SGC Image Creator Tool version 1.0
-; Copyright (c) 2017 Alexey Podrezov (alexey.podrezov@gdata.de)
+; Copyright (c) 2017 Alexey Podrezov (alexey.podrezov@gmail.com)
 ;
 
 #Region ;**** Directives created by AutoIt3Wrapper_GUI ****
