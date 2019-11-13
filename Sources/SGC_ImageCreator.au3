@@ -1,13 +1,13 @@
-; SGC Image Creator Tool version 1.0
-; Copyright (c) 2017 Alexey Podrezov (alexey.podrezov@gdata.de)
+; SGC Image Creator Tool version 1.1
+; Copyright (c) 2017-2019 Alexey Podrezov (alexey.podrezov@gdata.de)
 ;
 
 #Region ;**** Directives created by AutoIt3Wrapper_GUI ****
 #AutoIt3Wrapper_Icon=sgc.ico
 #AutoIt3Wrapper_Res_Comment=SGC Image Creator
 #AutoIt3Wrapper_Res_Description=Small Games Cartridge Image Creator
-#AutoIt3Wrapper_Res_Fileversion=1.0.0.0
-#AutoIt3Wrapper_Res_LegalCopyright=Copyright (c) 2017 Alexey Podrezov
+#AutoIt3Wrapper_Res_Fileversion=1.1.0.0
+#AutoIt3Wrapper_Res_LegalCopyright=Copyright (c) 2017-2019 Alexey Podrezov
 #AutoIt3Wrapper_Res_Field=Created By|Alexey Podrezov
 #AutoIt3Wrapper_Res_Icon_Add=sgc.ico
 #AutoIt3Wrapper_Res_File_Add=board.bmp
@@ -45,6 +45,9 @@ Global $fadespeed = 5
 Global $requiredfilecount = 3
 Global $requiredfiles[$requiredfilecount] = ["board.bmp", "sjumper.bmp", "sgc.ico"]
 Global $msgboxtimeout = 5
+Global $delayedstart = 0
+Global $activesegment = 2
+Global $ffbyte = 0xFF
 
 
 ; Run main code
@@ -90,6 +93,7 @@ Func _Main()
 	Local $button1 = GUICtrlCreateButton("Change Mode", 71, 327, 150, 25)
 	Local $button2 = GUICtrlCreateButton("Open and Convert", 226, 327, 150, 25, $BS_DEFPUSHBUTTON)
 	Local $button3 = GUICtrlCreateButton("Exit", 381, 327, 150, 25)
+	GUICtrlCreateLabel("   Version 1.1", 10, 240, 70, 14)
 
 	GUISetState(@SW_SHOWNORMAL, $guihandle)
 	ControlFocus($guihandle, "", $button2)
@@ -275,23 +279,48 @@ Func OpenAndConvert($inputfilename)
 				Return
 			EndIf
 
+			; Check for delayed start
+			$delayedstart = 0
+			If $inputfilesize <= 32768 And ($inputfiledata[4] > 0 Or $inputfiledata[5] > 0) Then
+				$delayedstart = 1
+			ElseIf $inputfilesize > 32768 And ($inputfiledata[16384 + 4] > 0 Or $inputfiledata[16384 + 5] > 0) Then
+				$delayedstart = 1
+			EndIf
+
 			; Check for wrong mode/size match
-			If $mode = 3 And $inputfilesize <= 32768 And $inputfiledata[3] < 0x80 Then
+			If $delayedstart = 0 And $mode = 3 And $inputfilesize <= 32768 And $inputfiledata[3] < 0x80 Then
 				MsgBox(4096 + 48, "Error", "This file starts below 0x8000 and can't be used in CS2 mode..." & @CRLF & "Please select another file or change mode to RD or CS1.")
 				Return
-			ElseIf $mode = 4 And $inputfilesize <= 16384 And $inputfiledata[3] >= 0x80 Then
+			ElseIf $delayedstart = 0 And $mode = 4 And $inputfilesize <= 16384 And $inputfiledata[3] >= 0x80 Then
 				MsgBox(4096 + 48, "Error", "This file starts above 0x8000 and can't be used in CS1 mode..." & @CRLF & "Please select another file or change mode to RD or CS2.")
 				Return
-			ElseIf $mode > 1 And $inputfilesize <= 32768 And $inputfiledata[3] < 0x40 Then
+			ElseIf $delayedstart = 0 And $mode > 1 And $inputfilesize <= 32768 And $inputfiledata[3] < 0x40 Then
+				MsgBox(4096 + 48, "Error", "This file starts below 0x4000 and can't be used in CS1/CS2/CS12 modes..." & @CRLF & "Please select another file or change mode to RD.")
+				Return
+			ElseIf $delayedstart = 1 And $mode = 3 And $inputfilesize <= 32768 And $inputfiledata[5] < 0x80 Then
+				MsgBox(4096 + 48, "Error", "This file starts below 0x8000 and can't be used in CS2 mode..." & @CRLF & "Please select another file or change mode to RD or CS1.")
+				Return
+			ElseIf $delayedstart = 1 And $mode = 4 And $inputfilesize <= 16384 And $inputfiledata[5] >= 0x80 Then
+				MsgBox(4096 + 48, "Error", "This file starts above 0x8000 and can't be used in CS1 mode..." & @CRLF & "Please select another file or change mode to RD or CS2.")
+				Return
+			ElseIf $delayedstart = 1 And $mode > 1 And $inputfilesize <= 32768 And $inputfiledata[5] < 0x40 Then
 				MsgBox(4096 + 48, "Error", "This file starts below 0x4000 and can't be used in CS1/CS2/CS12 modes..." & @CRLF & "Please select another file or change mode to RD.")
 				Return
 			EndIf
 
 			; Show info before conversion
-			If $inputfilesize <= 32768 Then
-				MsgBox(4096 + 64, "Information", "Ready to convert file: " & $inputfilename & @CRLF & @CRLF & "File type:" & @TAB & "ROM image" & @CRLF & "File size:" & @TAB & $inputfilesize & " bytes" & @CRLF & "Starts at: " & @TAB & $inputfiledata[3] & StringMid($inputfiledata[2], 3, 2))
+			If $delayedstart = 0 Then
+				If $inputfilesize <= 32768 Then
+					MsgBox(4096 + 64, "Information", "Ready to convert file: " & $inputfilename & @CRLF & @CRLF & "File type:" & @TAB & "ROM image" & @CRLF & "File size:" & @TAB & $inputfilesize & " bytes" & @CRLF & "Starts at:" & @TAB & $inputfiledata[3] & StringMid($inputfiledata[2], 3, 2))
+				Else
+					MsgBox(4096 + 64, "Information", "Ready to convert file: " & $inputfilename & @CRLF & @CRLF & "File type:" & @TAB & "ROM image" & @CRLF & "File size:" & @TAB & $inputfilesize & " bytes" & @CRLF & "Starts at:" & @TAB & $inputfiledata[16384 + 3] & StringMid($inputfiledata[16384 + 2], 3, 2))
+				EndIf
 			Else
-				MsgBox(4096 + 64, "Information", "Ready to convert file: " & $inputfilename & @CRLF & @CRLF & "File type:" & @TAB & "ROM image" & @CRLF & "File size:" & @TAB & $inputfilesize & " bytes" & @CRLF & "Starts at: " & @TAB & $inputfiledata[16384 + 3] & StringMid($inputfiledata[16384 + 2], 3, 2))
+				If $inputfilesize <= 32768 Then
+					MsgBox(4096 + 64, "Information", "Ready to convert file: " & $inputfilename & @CRLF & @CRLF & "File type:" & @TAB & "ROM image" & @CRLF & "File size:" & @TAB & $inputfilesize & " bytes" & @CRLF & "Starts at:" & @TAB & $inputfiledata[5] & StringMid($inputfiledata[4], 3, 2) & " (on-demand)")
+				Else
+					MsgBox(4096 + 64, "Information", "Ready to convert file: " & $inputfilename & @CRLF & @CRLF & "File type:" & @TAB & "ROM image" & @CRLF & "File size:" & @TAB & $inputfilesize & " bytes" & @CRLF & "Starts at:" & @TAB & $inputfiledata[16384 + 5] & StringMid($inputfiledata[16384 + 4], 3, 2) & " (on-demand)")
+				EndIf
 			EndIf
 
 		Else
@@ -325,9 +354,69 @@ Func ConvertROM($inputfilename, $outputfilename)
 		Return
 	EndIf
 
-	; Write 8kb file 8 times
-	If $inputfilesize = 8192 Then
-		For $counter1 = 1 to 8
+	; If no delayed start found
+	If $delayedstart = 0 Then
+
+		; Write 8kb file 8 times
+		If $inputfilesize = 8192 Then
+			For $counter1 = 1 to 8
+				For $counter = 0 to $inputfilesize - 1
+					$result = FileWrite($outputfilehandle, $inputfiledata[$counter])
+					If $result <> 1 Then
+						MsgBox(4096 + 16, "Error", "Can't write to output file..." & @CRLF & "Please try again.")
+						FileClose($outputfilehandle)
+						Return
+					EndIf
+				Next
+			Next
+
+		; Write 16kb file 4 times
+		ElseIf $inputfilesize = 16384 Then
+			For $counter1 = 1 to 4
+				For $counter = 0 to $inputfilesize - 1
+					$result = FileWrite($outputfilehandle, $inputfiledata[$counter])
+					If $result <> 1 Then
+						MsgBox(4096 + 16, "Error", "Can't write to output file..." & @CRLF & "Please try again.")
+						FileClose($outputfilehandle)
+						Return
+					EndIf
+				Next
+			Next
+
+		; Swap 16kb parts of 32kb file and write 2 times
+		ElseIf $inputfilesize = 32768 Then
+			For $counter1 = 1 to 2
+				For $counter = 0 to ($inputfilesize / 2) - 1
+					$result = FileWrite($outputfilehandle, $inputfiledata[$counter + 16384])
+					If $result <> 1 Then
+						MsgBox(4096 + 16, "Error", "Can't write to output file..." & @CRLF & "Please try again.")
+						FileClose($outputfilehandle)
+						Return
+					EndIf
+				Next
+				For $counter = 0 to ($inputfilesize / 2) - 1
+					$result = FileWrite($outputfilehandle, $inputfiledata[$counter])
+					If $result <> 1 Then
+						MsgBox(4096 + 16, "Error", "Can't write to output file..." & @CRLF & "Please try again.")
+						FileClose($outputfilehandle)
+						Return
+					EndIf
+				Next
+			Next
+
+		; Write 49kb file and add 16kb to the end
+		ElseIf $inputfilesize = 49152 Then
+			For $counter = 0 to $inputfilesize + 4096 - 1
+				$result = FileWrite($outputfilehandle, $inputfiledata[$counter])
+				If $result <> 1 Then
+					MsgBox(4096 + 16, "Error", "Can't write to output file..." & @CRLF & "Please try again.")
+					FileClose($outputfilehandle)
+					Return
+				EndIf
+			Next
+
+		; Write 64kb fully
+		Else
 			For $counter = 0 to $inputfilesize - 1
 				$result = FileWrite($outputfilehandle, $inputfiledata[$counter])
 				If $result <> 1 Then
@@ -336,65 +425,179 @@ Func ConvertROM($inputfilename, $outputfilename)
 					Return
 				EndIf
 			Next
-		Next
+		EndIf
 
-	; Write 16kb file 4 times
-	ElseIf $inputfilesize = 16384 Then
-		For $counter1 = 1 to 4
-			For $counter = 0 to $inputfilesize - 1
-				$result = FileWrite($outputfilehandle, $inputfiledata[$counter])
-				If $result <> 1 Then
-					MsgBox(4096 + 16, "Error", "Can't write to output file..." & @CRLF & "Please try again.")
-					FileClose($outputfilehandle)
-					Return
-				EndIf
-			Next
-		Next
-
-	; Swap 16kb parts of 32kb file and write 2 times
-	ElseIf $inputfilesize = 32768 Then
-		For $counter1 = 1 to 2
-			For $counter = 0 to ($inputfilesize / 2) - 1
-				$result = FileWrite($outputfilehandle, $inputfiledata[$counter + 16384])
-				If $result <> 1 Then
-					MsgBox(4096 + 16, "Error", "Can't write to output file..." & @CRLF & "Please try again.")
-					FileClose($outputfilehandle)
-					Return
-				EndIf
-			Next
-			For $counter = 0 to ($inputfilesize / 2) - 1
-				$result = FileWrite($outputfilehandle, $inputfiledata[$counter])
-				If $result <> 1 Then
-					MsgBox(4096 + 16, "Error", "Can't write to output file..." & @CRLF & "Please try again.")
-					FileClose($outputfilehandle)
-					Return
-				EndIf
-			Next
-		Next
-
-	; Write 49kb file and add 16kb to the end
-	ElseIf $inputfilesize = 49152 Then
-		For $counter = 0 to $inputfilesize + 4096 - 1
-			$result = FileWrite($outputfilehandle, $inputfiledata[$counter])
-			If $result <> 1 Then
-				MsgBox(4096 + 16, "Error", "Can't write to output file..." & @CRLF & "Please try again.")
-				FileClose($outputfilehandle)
-				Return
-			EndIf
-		Next
-
-	; Write 64kb fully
+	; If delayed start detected, don't duplicate file's parts
 	Else
-		For $counter = 0 to $inputfilesize - 1
-			$result = FileWrite($outputfilehandle, $inputfiledata[$counter])
-			If $result <> 1 Then
-				MsgBox(4096 + 16, "Error", "Can't write to output file..." & @CRLF & "Please try again.")
-				FileClose($outputfilehandle)
-				Return
+
+		; Find out the default segment for the file
+		$activesegment = 2
+		If $inputfilesize = 8192 And $inputfiledata[5] < 0x40 Then
+			$activesegment = 1
+		ElseIf $inputfilesize = 8192 And $inputfiledata[5] < 0x80 Then
+			$activesegment = 3
+		ElseIf $inputfilesize = 8192 And $inputfiledata[5] < 0xC0 Then
+			$activesegment = 5
+		ElseIf $inputfilesize = 16384 And $inputfiledata[5] < 0x40 Then
+			$activesegment = 1
+		ElseIf $inputfilesize = 16384 And $inputfiledata[5] < 0x80 Then
+			$activesegment = 2
+		ElseIf $inputfilesize = 16384 And $inputfiledata[5] < 0xC0 Then
+			$activesegment = 3
+		ElseIf $inputfilesize = 32768 And $inputfiledata[5] < 0x40 Then
+			$activesegment = 1
+		ElseIf $inputfilesize = 32768 And $inputfiledata[5] < 0x80 Then
+			$activesegment = 2
+		EndIf
+
+		; Write 8kb file and 57kb of FFs
+		If $inputfilesize = 8192 Then
+			For $counter1 = 1 to 8
+				For $counter = 0 to $inputfilesize - 1
+					If $activesegment = $counter1 Then
+						$result = FileWrite($outputfilehandle, $inputfiledata[$counter])
+					Else
+						$result = FileWrite($outputfilehandle, Chr(0xFF))
+					EndIf
+					If $result <> 1 Then
+						MsgBox(4096 + 16, "Error", "Can't write to output file..." & @CRLF & "Please try again.")
+						FileClose($outputfilehandle)
+						Return
+					EndIf
+				Next
+			Next
+
+		; Write 16kb file and 49kb of FFs
+		ElseIf $inputfilesize = 16384 Then
+			For $counter1 = 1 to 4
+				For $counter = 0 to $inputfilesize - 1
+					If $activesegment = $counter1 Then
+						$result = FileWrite($outputfilehandle, $inputfiledata[$counter])
+					Else
+						$result = FileWrite($outputfilehandle, Chr(0xFF))
+					EndIf
+					If $result <> 1 Then
+						MsgBox(4096 + 16, "Error", "Can't write to output file..." & @CRLF & "Please try again.")
+						FileClose($outputfilehandle)
+						Return
+					EndIf
+				Next
+			Next
+
+		; Write 32kb straight or with swapped parts depending on mode
+		ElseIf $inputfilesize = 32768 Then
+			; RD mode and starts from zero
+			If $mode = 1 And $activesegment = 1 Then
+				; Write 32kb of file
+				For $counter = 0 to $inputfilesize - 1
+					$result = FileWrite($outputfilehandle, $inputfiledata[$counter])
+					If $result <> 1 Then
+						MsgBox(4096 + 16, "Error", "Can't write to output file..." & @CRLF & "Please try again.")
+						FileClose($outputfilehandle)
+						Return
+					EndIf
+				Next
+				; Write 32kb of FFs
+				For $counter = 0 to $inputfilesize - 1
+					$result = FileWrite($outputfilehandle, Chr(0xFF))
+					If $result <> 1 Then
+						MsgBox(4096 + 16, "Error", "Can't write to output file..." & @CRLF & "Please try again.")
+						FileClose($outputfilehandle)
+						Return
+					EndIf
+				Next
+			ElseIf $mode = 1 And $activesegment = 2 Then
+				; Write 16kb of FFs
+				For $counter = 0 to 16384 - 1
+					$result = FileWrite($outputfilehandle, Chr(0xFF))
+					If $result <> 1 Then
+						MsgBox(4096 + 16, "Error", "Can't write to output file..." & @CRLF & "Please try again.")
+						FileClose($outputfilehandle)
+						Return
+					EndIf
+				Next
+				; Write 32kb of file
+				For $counter = 0 to $inputfilesize - 1
+					$result = FileWrite($outputfilehandle, $inputfiledata[$counter])
+					If $result <> 1 Then
+						MsgBox(4096 + 16, "Error", "Can't write to output file..." & @CRLF & "Please try again.")
+						FileClose($outputfilehandle)
+						Return
+					EndIf
+				Next
+				; Write 16kb of FFs
+				For $counter = 0 to 16384 - 1
+					$result = FileWrite($outputfilehandle, Chr(0xFF))
+					If $result <> 1 Then
+						MsgBox(4096 + 16, "Error", "Can't write to output file..." & @CRLF & "Please try again.")
+						FileClose($outputfilehandle)
+						Return
+					EndIf
+				Next
+
+			; Write swapped 16kb parts and 32kb of FFs for CS12 mode (works only with B1 or B12 jumper!)
+			Else
+				For $counter = 0 to ($inputfilesize / 2) - 1
+					$result = FileWrite($outputfilehandle, $inputfiledata[$counter + 16384])
+					If $result <> 1 Then
+						MsgBox(4096 + 16, "Error", "Can't write to output file..." & @CRLF & "Please try again.")
+						FileClose($outputfilehandle)
+						Return
+					EndIf
+				Next
+				For $counter = 0 to ($inputfilesize / 2) - 1
+					$result = FileWrite($outputfilehandle, $inputfiledata[$counter])
+					If $result <> 1 Then
+						MsgBox(4096 + 16, "Error", "Can't write to output file..." & @CRLF & "Please try again.")
+						FileClose($outputfilehandle)
+						Return
+					EndIf
+				Next
+				; Write 32kb of FFs
+				For $counter = 0 to $inputfilesize - 1
+					$result = FileWrite($outputfilehandle, Chr(0xFF))
+					If $result <> 1 Then
+						MsgBox(4096 + 16, "Error", "Can't write to output file..." & @CRLF & "Please try again.")
+						FileClose($outputfilehandle)
+						Return
+					EndIf
+				Next
 			EndIf
-		Next
+
+		; Write 49kb file
+		ElseIf $inputfilesize = 49152 Then
+			For $counter = 0 to $inputfilesize - 1
+				$result = FileWrite($outputfilehandle, $inputfiledata[$counter])
+				If $result <> 1 Then
+					MsgBox(4096 + 16, "Error", "Can't write to output file..." & @CRLF & "Please try again.")
+					FileClose($outputfilehandle)
+					Return
+				EndIf
+			Next
+			; Write extra 16kb in the end
+			For $counter = 0 to 4096 - 1
+				$result = FileWrite($outputfilehandle, Chr(0xFF))
+				If $result <> 1 Then
+					MsgBox(4096 + 16, "Error", "Can't write to output file..." & @CRLF & "Please try again.")
+					FileClose($outputfilehandle)
+					Return
+				EndIf
+			Next
+
+		; Write 64kb fully
+		Else
+			For $counter = 0 to $inputfilesize - 1
+				$result = FileWrite($outputfilehandle, $inputfiledata[$counter])
+				If $result <> 1 Then
+					MsgBox(4096 + 16, "Error", "Can't write to output file..." & @CRLF & "Please try again.")
+					FileClose($outputfilehandle)
+					Return
+				EndIf
+			Next
+		EndIf
 	EndIf
 
+	; Close file
 	FileClose($outputfilehandle)
 	MsgBox(4096 + 64, "Success", "The conversion completed successfully!" & @CRLF & @CRLF & "Input file:" & @CRLF & $inputfilename & @CRLF & @CRLF & "Output file:" & @CRLF & $outputfilename & @CRLF & @CRLF & "Press OK to continue.")
 EndFunc

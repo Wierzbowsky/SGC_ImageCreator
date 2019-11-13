@@ -1,5 +1,5 @@
-Small Games Cartridge Image Converter Utility version 1.0
-Copyright (c) 2017 Alexey Podrezov (RBSC)
+Small Games Cartridge Image Converter Utility version 1.1
+Copyright (c) 2017-2019 Alexey Podrezov (RBSC)
 
 
 DISCLAIMER

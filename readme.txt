@@ -1,5 +1,5 @@
-Small Games Cartridge Image Converter Utility version 1.0
-Copyright (c) 2017 Alexey Podrezov (Wierzbowsky @ RBSC)
+Small Games Cartridge Image Converter Utility version 1.1
+Copyright (c) 2017-2019 Alexey Podrezov (Wierzbowsky @ RBSC)
 
 
 About
@@ -17,17 +17,18 @@ desired ROM file and to convert it into the 64kb image for programming into the 
 IMPORTANT!
 ----------
 
-The RBSC provides all the files and information for free, without any liability (see the disclaimer.txt file). The provided information,
-software or hardware must not be used for commercial purposes unless permitted by the RBSC.
+The RBSC provides all the files and information for free, without any liability (see the disclaimer.txt file). The
+provided information, software or hardware must not be used for commercial purposes unless permitted by the RBSC.
 
-When the sources of the tools are used to create alternative projects, please always mention the original source and the copyright!
+When the sources of the tools are used to create alternative projects, please always mention the original source and
+the copyright!
 
 
 Contact information
 -------------------
 
-The members of RBSC group Wierzbowsky, Ptero and DJS3000 can be contacted via the MSX.ORG or ZX-PK.RU forums. Just send a personal
-message and state your business.
+The members of RBSC group Wierzbowsky, Ptero, Pencioner and DJS3000 can be contacted via the MSX.ORG or ZX-PK.RU forums.
+Just send a personal message and state your business.
 
 The RBSC repository can be found here:
 
